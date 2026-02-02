@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SISTEMA: Mestre Supremo</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200;400;600&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+    <style>
+        /* --- VISUAL BASE --- */
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; padding: 0; background-color: #050505; color: #ccc; font-family: 'Montserrat', sans-serif; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+        .hidden { display: none !important; }
+        input, textarea { outline: none; font-family: inherit; }
+
+        /* ICONS */
+        .icon-hex { width: 24px; height: 24px; fill: none; stroke: #d4af37; stroke-width: 2; cursor: pointer; transition: 0.2s; }
+        .icon-hex:hover { fill: rgba(212, 175, 55, 0.2); }
+
+        /* HEADER */
+        #gm-header { padding: 15px; background: #111; border-bottom: 2px solid #d4af37; text-align: center; z-index: 10; display:flex; flex-direction:column; align-items:center; }
+        .room-code-display { font-size: 1.2rem; color: #fff; letter-spacing: 3px; font-weight: bold; cursor: pointer; border: 1px dashed #444; padding: 5px 15px; border-radius: 4px; margin: 5px 0; }
+        .room-code-display:hover { border-color: #d4af37; color: #d4af37; }
+        .btn-gm { background: #222; border: 1px solid #444; color: #ccc; padding: 8px 15px; border-radius: 20px; cursor: pointer; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; margin-top:5px; }
+
+        /* HOME */
+        #home-screen { flex: 1; overflow-y: auto; padding: 20px; }
+        .char-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; padding-bottom: 80px; }
+        .home-card { background: #111; border: 1px solid #333; border-radius: 8px; padding: 15px; position: relative; transition: 0.2s; }
+        .home-card:hover { border-color: #d4af37; transform: translateY(-2px); }
+        .hc-top { display: flex; justify-content: space-between; align-items: flex-start; }
+        .hc-name { font-size: 1.1rem; color: #fff; font-weight: bold; text-transform: uppercase; }
+        .hc-class { font-size: 0.7rem; color: #d4af37; text-transform: uppercase; margin-bottom: 10px; display: block; }
+        .hc-bar { height: 6px; background: #222; margin-top: 8px; border-radius: 3px; overflow: hidden; }
+        .hc-fill { height: 100%; width: 50%; transition: 0.3s; }
+        .btn-open-sheet { width: 100%; margin-top: 15px; padding: 10px; background: #1a1a1a; border: 1px solid #444; color: #fff; border-radius: 6px; cursor: pointer; text-transform: uppercase; font-size: 0.7rem; }
+        .btn-kick { color: #bd1e1e; background: none; border: 1px solid #bd1e1e; border-radius: 50%; width: 25px; height: 25px; cursor: pointer; font-weight: bold; }
+
+        /* FICHA */
+        #sheet-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #080808; z-index: 50; display: none; flex-direction: column; }
+        .sheet-header { padding: 15px; background: #111; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
+        .sh-title { font-size: 1.1rem; color: #fff; font-weight: bold; text-transform: uppercase; }
+        .sh-sub { font-size: 0.7rem; color: #888; }
+        .sheet-tabs { display: flex; gap: 5px; background: #0e0e0e; padding: 10px; overflow-x: auto; border-bottom: 1px solid #222; }
+        .tab-btn { background: transparent; border: 1px solid #333; color: #666; padding: 8px 15px; border-radius: 20px; font-size: 0.7rem; cursor: pointer; white-space: nowrap; }
+        .tab-btn.active { background: #222; color: #d4af37; border-color: #d4af37; }
+        .sheet-content { flex: 1; overflow-y: auto; padding: 20px; }
+        .sheet-view { display: none; } .sheet-view.active { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from{opacity:0}to{opacity:1} }
+
+        /* ELEMENTS */
+        .attr-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 20px; }
+        .attr-box { background: #111; border: 1px solid #333; padding: 10px 5px; text-align: center; border-radius: 6px; }
+        .attr-input { width: 100%; background: transparent; border: none; color: #fff; font-size: 1.3rem; font-weight: bold; text-align: center; }
+        .attr-lbl { font-size: 0.6rem; color: #d4af37; text-transform: uppercase; margin-top: 2px; }
+        .bar-container { background: #111; border: 1px solid #333; padding: 10px; border-radius: 8px; margin-bottom: 15px; }
+        .bar-header { display: flex; justify-content: space-between; font-size: 0.8rem; color: #ccc; margin-bottom: 5px; }
+        .bar-track { height: 8px; background: #222; border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
+        .bar-fill { height: 100%; transition: 0.3s; }
+        .bg-hp { background: #e74c3c; } .bg-mp { background: #3498db; } .bg-san { background: #9b59b6; }
+        .bar-ctrls { display: flex; gap: 5px; }
+        .btn-ctrl { flex: 1; background: #1f1f1f; border: 1px solid #333; color: #ccc; padding: 5px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; }
+        .bar-val-input { width: 40px; background: #000; border: 1px solid #333; color: #fff; text-align: center; border-radius: 4px; }
+        .section-title { font-size: 0.8rem; color: #d4af37; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 5px; margin: 20px 0 10px 0; display: flex; justify-content: space-between; }
+        .item-card { background: #111; border-left: 3px solid #444; padding: 10px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .btn-add { background: transparent; border: 1px dashed #444; color: #888; width: 100%; padding: 10px; border-radius: 6px; cursor: pointer; text-transform: uppercase; font-size: 0.7rem; }
+
+        /* MODAIS */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 100; display: none; justify-content: center; align-items: center; }
+        .modal-box { background: #151515; border: 1px solid #d4af37; padding: 20px; width: 90%; max-width: 350px; border-radius: 8px; }
+        .modal-inp { width: 100%; padding: 10px; background: #000; border: 1px solid #333; color: #fff; margin-bottom: 10px; border-radius:4px; }
+        .btn-modal { width: 100%; padding: 10px; background: #d4af37; color: #000; border: none; font-weight: bold; cursor: pointer; margin-top: 5px; border-radius:4px; }
+        
+        /* GM DICE & HIST */
+        .dice-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .dice-btn { padding: 15px; background: #000; color: #fff; border: 1px solid #333; cursor: pointer; font-weight: bold; }
+        
+        /* FABs */
+        .fab-container { position: fixed; bottom: 30px; right: 30px; display: flex; flex-direction: column; gap: 15px; z-index: 90; }
+        .fab-btn { width: 60px; height: 60px; border-radius: 50%; border: none; cursor: pointer; font-size: 1.5rem; box-shadow: 0 4px 15px rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; }
+        .fab-dice { background: #d4af37; color: #000; border: 2px solid #fff; }
+        .fab-hist { background: #222; color: #ccc; border: 1px solid #444; width: 50px; height: 50px; font-size: 1.2rem; }
+        
+        /* HISTORICO */
+        #history-panel { position: fixed; top: 0; right: 0; width: 300px; height: 100%; background: #111; border-left: 2px solid #d4af37; z-index: 95; transform: translateX(100%); transition: 0.3s; display: flex; flex-direction: column; box-shadow: -10px 0 30px rgba(0,0,0,0.8); }
+        #history-panel.open { transform: translateX(0); }
+        .hist-header { padding: 20px; background: #000; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
+        .hist-list { flex: 1; overflow-y: auto; padding: 10px; }
+        .hist-item { background: #1a1a1a; padding: 10px; margin-bottom: 8px; border-radius: 6px; border-left: 3px solid #444; font-size: 0.8rem; }
+        .hist-item.hidden { border-left-color: #bd1e1e; background: #1a0505; }
+        .hist-time { font-size: 0.6rem; color: #666; float: right; }
+        .hist-res { font-size: 1.1rem; font-weight: bold; color: #fff; margin-top: 2px; }
+
+        /* TOAST */
+        #toast-container { position: fixed; bottom: 20px; left: 20px; z-index: 200; pointer-events: none; }
+        .toast { background: rgba(10,10,10,0.95); border-left: 3px solid #d4af37; padding: 10px 15px; color: #fff; min-width: 250px; margin-top:10px; pointer-events: all; animation: slideIn 0.3s; }
+        @keyframes slideIn { from{transform:translateX(-50px);opacity:0}to{transform:translateX(0);opacity:1}}
+        .editable { border-bottom: 1px dashed #444; }
+    </style>
+</head>
+<body>
+
+    <div id="gm-header">
+        <h1 style="margin:0; font-size:1.2rem; color:#fff; letter-spacing:3px;">MESTRE SUPREMO</h1>
+        <div class="room-code-display" onclick="copyCode()" id="display-code">...</div>
+        <button class="btn-gm" id="btn-shield" onclick="toggleShield()">🛡️ ESCUDO OFF</button>
+    </div>
+
+    <div id="home-screen">
+        <div style="font-size:0.7rem; color:#666; margin-bottom:10px; text-transform:uppercase;">Jogadores Conectados</div>
+        <div id="home-list" class="char-grid"></div>
+    </div>
+
+    <div id="sheet-screen">
+        <div class="sheet-header">
+            <div><button onclick="closeSheet()" style="background:none; border:none; color:#666;">← VOLTAR</button><div class="sh-title" id="sh-name">Nome</div><div class="sh-sub" id="sh-info">Classe</div></div>
+            <button onclick="kickPlayer()" style="background:#bd1e1e; border:none; color:#fff; padding:5px 10px; border-radius:4px; font-size:0.7rem;">EXPULSAR</button>
+        </div>
+        <div class="sheet-tabs">
+            <button class="tab-btn active" onclick="nav('info')">INFO</button>
+            <button class="tab-btn" onclick="nav('atributos')">ATRIBUTOS</button>
+            <button class="tab-btn" onclick="nav('combate')">COMBATE</button>
+            <button class="tab-btn" onclick="nav('inventario')">INVENTÁRIO</button>
+            <button class="tab-btn" onclick="nav('pericias')">PERÍCIAS</button>
+        </div>
+        <div class="sheet-content">
+            <div id="view-info" class="sheet-view active">
+                <div class="section-title"><span>DADOS</span></div>
+                <input type="text" id="inp-name" class="modal-inp editable" onchange="editRoot('name', this.value)">
+                <input type="text" id="inp-class" class="modal-inp editable" onchange="editRoot('classe', this.value)">
+                <input type="text" id="inp-race" class="modal-inp editable" onchange="editRoot('race', this.value)">
+                <textarea id="inp-hist" class="modal-inp editable" rows="5" onchange="editRoot('hist', this.value)"></textarea>
+            </div>
+            <div id="view-atributos" class="sheet-view">
+                <div class="attr-grid" id="attr-container"></div>
+                <div style="display:flex; gap:10px; margin-bottom:20px;">
+                    <div style="flex:1; background:#111; padding:10px; border:1px solid #333; text-align:center; border-radius:6px;"><input type="number" id="inp-def" class="attr-input" onchange="editStat('def', this.value)"><div class="attr-lbl">DEFESA</div></div>
+                    <div style="flex:1; background:#111; padding:10px; border:1px solid #333; text-align:center; border-radius:6px;"><input type="number" id="inp-res" class="attr-input" onchange="editStat('res', this.value)"><div class="attr-lbl">RESISTÊNCIA</div></div>
+                </div>
+                <div id="bars-list"></div>
+                <button class="btn-add" onclick="addCustomBar()">+ Nova Barra</button>
+            </div>
+            <div id="view-combate" class="sheet-view">
+                <div class="section-title"><span>FAVORITOS</span></div><div id="list-favs"></div>
+                <div class="section-title"><span>HABILIDADES</span><button style="background:none; border:none; color:#d4af37;" onclick="openAddModal('habilidades')">+</button></div><div id="list-habilidades"></div>
+                <div class="section-title"><span>EQUIPAMENTOS</span><button style="background:none; border:none; color:#d4af37;" onclick="openAddModal('equipamentos')">+</button></div><div id="list-equipamentos"></div>
+            </div>
+            <div id="view-inventario" class="sheet-view">
+                <div class="section-title"><span>ITENS</span><button style="background:none; border:none; color:#d4af37;" onclick="openAddModal('itens')">+</button></div><div id="list-itens"></div>
+            </div>
+            <div id="view-pericias" class="sheet-view">
+                <div class="section-title"><span>PERÍCIAS</span><button style="background:none; border:none; color:#d4af37;" onclick="openAddModal('pericias')">+</button></div><div id="list-pericias"></div>
+                <div class="section-title"><span>OFÍCIOS</span><button style="background:none; border:none; color:#d4af37;" onclick="openAddModal('oficios')">+</button></div><div id="list-oficios"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="add-modal" class="modal">
+        <div class="modal-box">
+            <h3 style="margin-top:0; color:#d4af37;">CRIAR NOVO</h3>
+            <label style="font-size:0.7rem; color:#888;">NOME</label>
+            <input type="text" id="forge-name" class="modal-inp">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                <div><label style="font-size:0.7rem; color:#d4af37;">ROLAGEM/VALOR</label><input type="text" id="forge-roll" class="modal-inp"></div>
+                <div><label style="font-size:0.7rem; color:#3498db;">CUSTO</label><input type="text" id="forge-cost" class="modal-inp"></div>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                <div><label style="font-size:0.7rem; color:#bd1e1e;">CRÍTICO</label><input type="text" id="forge-crit" class="modal-inp"></div>
+                <div><label style="font-size:0.7rem; color:#ccc;">ALCANCE</label><input type="text" id="forge-range" class="modal-inp"></div>
+            </div>
+            <label style="font-size:0.7rem; color:#888;">DESCRIÇÃO</label>
+            <textarea id="forge-desc" class="modal-inp" rows="3"></textarea>
+            <div style="display:flex; gap:10px;">
+                <button class="btn-modal" onclick="confirmForgeItem()">CRIAR</button>
+                <button class="btn-modal" style="background:#333;" onclick="document.getElementById('add-modal').style.display='none'">CANCELAR</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="fab-container">
+        <button class="fab-btn fab-hist" onclick="toggleHistory()">📜</button>
+        <button class="fab-btn fab-dice" onclick="openDiceModal()">🎲</button>
+    </div>
+
+    <div id="history-panel">
+        <div class="hist-header"><h3 style="margin:0; color:#d4af37;">HISTÓRICO</h3><button onclick="toggleHistory()" style="background:none; border:none; color:#fff; font-size:1.5rem;">&times;</button></div>
+        <div id="hist-list" class="hist-list"></div>
+    </div>
+
+    <div id="gm-dice-modal" class="modal">
+        <div class="modal-box"><h3 style="color:#d4af37; text-align:center;">ROLAGEM RÁPIDA</h3>
+            <div class="dice-grid">
+                <button class="dice-btn" onclick="gmRoll('1d20')">d20</button><button class="dice-btn" onclick="gmRoll('1d12')">d12</button>
+                <button class="dice-btn" onclick="gmRoll('1d10')">d10</button><button class="dice-btn" onclick="gmRoll('1d8')">d8</button>
+                <button class="dice-btn" onclick="gmRoll('1d6')">d6</button><button class="dice-btn" onclick="gmRoll('1d4')">d4</button>
+            </div>
+            <button class="btn-modal" style="background:#333; margin-top:20px;" onclick="document.getElementById('gm-dice-modal').style.display='none'">FECHAR</button>
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script>
+        // CONFIG FIREBASE - COLOQUE A SUA AQUI
+        const firebaseConfig = {
+            apiKey: "AIzaSyDKxt0jilkvGj0kDIpXlktHih_n_2qDKY0",
+            authDomain: "meu-sistema-9ffe4.firebaseapp.com",
+            databaseURL: "https://meu-sistema-9ffe4-default-rtdb.firebaseio.com",
+            projectId: "meu-sistema-9ffe4",
+            storageBucket: "meu-sistema-9ffe4.firebasestorage.app",
+            messagingSenderId: "603836576137",
+            appId: "1:603836576137:web:d6bbce12dc7b17cafb3158"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // ESTADO
+        let roomCode = localStorage.getItem('rpg_gm_room') || 'MESA-' + Math.floor(Math.random()*1000);
+        localStorage.setItem('rpg_gm_room', roomCode);
+        let chars = [], activeId = null, isShieldOn = false, currentAddType = '', dbRef = db.ref('rpg_rooms/' + roomCode);
+
+        window.onload = () => {
+            document.getElementById('display-code').innerText = roomCode;
+            dbRef.child('chars').on('value', snap => { chars = snap.val() || []; renderHome(); if(activeId) renderSheet(); });
+            dbRef.child('rolls').limitToLast(20).on('child_added', snap => { 
+                const r = snap.val(); 
+                if(!document.getElementById('hist-'+r.id)) addToHistoryUI(r);
+                if(Date.now() - r.id < 5000) showToast(r); 
+            });
+        };
+
+        function renderHome() {
+            const grid = document.getElementById('home-list'), list = getCharList(); grid.innerHTML = '';
+            if(list.length === 0) return grid.innerHTML = '<div style="color:#444; text-align:center;">Aguardando... Code: '+roomCode+'</div>';
+            list.forEach(c => {
+                let p = 50; if(c.stats?.hp && c.calculatedMax?.hp) p = (c.stats.hp.c/c.calculatedMax.hp)*100;
+                grid.innerHTML += `<div class="home-card"><div class="hc-top"><div><span class="hc-class">${c.classe}</span><div class="hc-name">${c.name}</div></div><button class="btn-kick" onclick="kick('${c.id}', event)">×</button></div><div class="hc-bar"><div class="hc-fill bg-hp" style="width:${p}%"></div></div><button class="btn-open-sheet" onclick="openSheet('${c.id}')">ABRIR FICHA</button></div>`;
+            });
+        }
+
+        function openSheet(id) { activeId = id; document.getElementById('sheet-screen').style.display='flex'; renderSheet(); }
+        function closeSheet() { activeId = null; document.getElementById('sheet-screen').style.display='none'; }
+        
+        function renderSheet() {
+            const c = getActiveChar(); if(!c) return closeSheet();
+            document.getElementById('sh-name').innerText = c.name; document.getElementById('sh-info').innerText = `${c.classe} - ${c.race}`;
+            if(document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+                ['name','class','race','hist'].forEach(k => document.getElementById('inp-'+k).value = (k==='class'?c.classe:c[k])||'');
+                ['def','res'].forEach(k => document.getElementById('inp-'+k).value = c.stats[k]||0);
+            }
+            const ad = document.getElementById('attr-container'); ad.innerHTML=''; Object.entries(c.attrs||{}).forEach(([k,v])=>ad.innerHTML+=`<div class="attr-box"><input type="number" class="attr-input" value="${v}" onchange="editAttr('${k}',this.value)"><div class="attr-lbl">${k}</div></div>`);
+            
+            const bl = document.getElementById('bars-list'); bl.innerHTML='';
+            ['hp','mp','cos','ki','ck'].forEach(t => { if(c.stats[t] && c.calculatedMax?.[t]) renderBar(bl,t.toUpperCase(),c.stats[t].c,c.calculatedMax[t],t); });
+            if(c.customBars) c.customBars.forEach((cb,i)=>renderBar(bl,cb.n,cb.c,cb.m,'custom',i));
+
+            ['habilidades','equipamentos','itens','pericias','oficios'].forEach(t => renderList(t, c.lists?.[t]));
+            const fd = document.getElementById('list-favs'); fd.innerHTML=''; ['habilidades','equipamentos','itens'].forEach(t=>{ if(c.lists?.[t]) c.lists[t].forEach((i,idx)=>{ if(i.fav) fd.innerHTML+=createItemHTML(i,t,idx,true); }) });
+        }
+
+        function renderBar(el,n,c,m,t,idx=null) {
+            const p = Math.min(100,Math.max(0,(c/m)*100)), fn = idx!==null ? `modC(${idx},` : `modB('${t}',`;
+            el.innerHTML += `<div class="bar-container"><div class="bar-header"><b>${n}</b><span>${c}/${m}</span></div><div class="bar-track"><div class="bar-fill ${t==='hp'?'bg-hp':t==='mp'?'bg-mp':'bg-san'}" style="width:${p}%"></div></div><div class="bar-ctrls"><button class="btn-ctrl" onclick="${fn}-10)">-10</button><button class="btn-ctrl" onclick="${fn}-1)">-1</button><input class="bar-val-input" value="${c}" onchange="${idx!==null?'setC('+idx:'setB(\''+t+'\''},this.value)"><button class="btn-ctrl" onclick="${fn}1)">+1</button><button class="btn-ctrl" onclick="${fn}10)">+10</button></div></div>`;
+        }
+
+        function renderList(t,l) { document.getElementById('list-'+t).innerHTML = l ? l.map((i,x)=>createItemHTML(i,t,x)).join('') : '<div style="color:#444;font-size:0.7rem;">Vazio</div>'; }
+        
+        function createItemHTML(i,t,x,fav=false) {
+            let tags = ''; if(i.roll) tags+=`<span style="background:#222;border:1px solid #d4af37;color:#d4af37;padding:2px 6px;border-radius:4px;font-size:0.6rem;margin-right:5px;">${i.roll}</span>`;
+            if(i.cost) tags+=`<span style="background:#1a1a2e;border:1px solid #3498db;color:#3498db;padding:2px 6px;border-radius:4px;font-size:0.6rem;margin-right:5px;">${i.cost}</span>`;
+            if(i.crit) tags+=`<span style="color:#bd1e1e;font-size:0.6rem;margin-right:5px;">Crit: ${i.crit}</span>`;
+            const act = i.roll ? `rollItem('${t}',${x},'${i.n}')` : '';
+            return `<div class="item-card"><div style="display:flex;align-items:center;gap:10px;width:100%;"><svg class="icon-hex" style="${i.roll?'cursor:pointer':''}" viewBox="0 0 100 100" onclick="${act}"><polygon points="50 3, 100 28, 100 75, 50 100, 3 75, 3 28"/></svg><div style="flex:1;"><div style="display:flex;justify-content:space-between;"><b>${i.n}</b><div>${tags}</div></div>${i.desc?`<small style="display:block;color:#888;">${i.desc}</small>`:''}${i.range?`<small style="color:#666;">Alc: ${i.range}</small>`:''}</div></div><div>${!fav?`<button onclick="delItem('${t}',${x})" style="color:#bd1e1e;background:none;border:none;cursor:pointer;">×</button>`:''}</div></div>`;
+        }
+
+        // --- EDIT LOGIC ---
+        function gp(){ const l=getCharList(), i=l.findIndex(c=>c.id==activeId); return i>-1 ? `chars/${i}` : null; }
+        function editRoot(f,v){ const p=gp(); if(p) dbRef.child(`${p}/${f}`).set(v); }
+        function editAttr(k,v){ const p=gp(); if(p) dbRef.child(`${p}/attrs/${k}`).set(parseInt(v)); }
+        function editStat(k,v){ const p=gp(); if(p) dbRef.child(`${p}/stats/${k}`).set(parseInt(v)); }
+        function modB(t,v){ const c=getActiveChar(), p=gp(); if(c&&p) dbRef.child(`${p}/stats/${t}/c`).set(c.stats[t].c+v); }
+        function setB(t,v){ const p=gp(); if(p) dbRef.child(`${p}/stats/${t}/c`).set(parseInt(v)); }
+        function modC(i,v){ const c=getActiveChar(), p=gp(); if(c&&p) dbRef.child(`${p}/customBars/${i}/c`).set(c.customBars[i].c+v); }
+        function setC(i,v){ const p=gp(); if(p) dbRef.child(`${p}/customBars/${i}/c`).set(parseInt(v)); }
+        function addCustomBar(){ const n=prompt("Nome"), m=prompt("Max"); if(n&&m){ const c=getActiveChar(), p=gp(); if(c&&p) { const a=c.customBars||[]; a.push({n,c:parseInt(m),m:parseInt(m)}); dbRef.child(`${p}/customBars`).set(a); } } }
+        
+        // --- FORGE ---
+        function openAddModal(t){ currentAddType=t; document.getElementById('add-modal').style.display='flex'; ['name','roll','cost','crit','range','desc'].forEach(k=>document.getElementById('forge-'+k).value=''); document.getElementById('forge-name').focus(); }
+        function confirmForgeItem(){
+            const n=document.getElementById('forge-name').value; if(!n)return alert('Nome?');
+            const it={n, roll:document.getElementById('forge-roll').value, cost:document.getElementById('forge-cost').value, crit:document.getElementById('forge-crit').value, range:document.getElementById('forge-range').value, desc:document.getElementById('forge-desc').value, fav:false};
+            const c=getActiveChar(), p=gp(); if(c&&p){ const l=c.lists?c.lists[currentAddType]||[]:[]; l.push(it); dbRef.child(`${p}/lists/${currentAddType}`).set(l); }
+            document.getElementById('add-modal').style.display='none';
+        }
+        function delItem(t,x){ if(confirm('Del?')){ const c=getActiveChar(), p=gp(); if(c&&p){ const l=c.lists[t]; l.splice(x,1); dbRef.child(`${p}/lists/${t}`).set(l); } } }
+        function kick(id,e){ if(e)e.stopPropagation(); if(confirm('Kick?')){ const l=getCharList().filter(c=>c.id!=id); dbRef.child('chars').set(l); if(id==activeId)closeSheet(); } }
+
+        // --- ROLLS & HISTORY ---
+        function rollItem(t,x,n){ const r=Math.floor(Math.random()*20)+1; dbRef.child('rolls').push({id:Date.now(), title:`${n} (${getActiveChar().name})`, total:r, details:"Via Mestre", hidden:isShieldOn}); }
+        function gmRoll(d){ const r=Math.floor(Math.random()*parseInt(d.split('d')[1]))+1; dbRef.child('rolls').push({id:Date.now(), title:"MESTRE", total:r, details:d, hidden:isShieldOn}); document.getElementById('gm-dice-modal').style.display='none'; }
+        function openDiceModal(){ document.getElementById('gm-dice-modal').style.display='flex'; }
+        function toggleHistory(){ document.getElementById('history-panel').classList.toggle('open'); }
+        function toggleShield(){ isShieldOn=!isShieldOn; document.getElementById('btn-shield').innerText=isShieldOn?"🛡️ ON":"🛡️ OFF"; document.getElementById('btn-shield').style.color=isShieldOn?"#d4af37":"#ccc"; }
+        function copyCode(){ navigator.clipboard.writeText(roomCode).then(()=>alert('Copiado!')); }
+        function nav(v){ document.querySelectorAll('.sheet-view').forEach(e=>e.classList.remove('active')); document.getElementById('view-'+v).classList.add('active'); document.querySelectorAll('.tab-btn').forEach(e=>e.classList.remove('active')); event.target.classList.add('active'); }
+        function showToast(d){ const e=document.createElement('div'); e.className='toast'; if(d.hidden)e.style.borderLeftColor='#bd1e1e'; e.innerHTML=`<div style="font-size:0.7rem;color:${d.hidden?'#bd1e1e':'#d4af37'}">${d.hidden?'👁️ ':''}${d.title}</div><div style="font-size:1.5rem;font-weight:bold;">${d.total}</div><div style="font-size:0.7rem;color:#888;">${d.details}</div>`; document.getElementById('toast-container').appendChild(e); setTimeout(()=>e.remove(),4000); }
+        function addToHistoryUI(r){ const d=new Date(r.id), t=`${d.getHours()}:${d.getMinutes()<10?'0':''}${d.getMinutes()}`; const i=document.createElement('div'); i.id='hist-'+r.id; i.className=`hist-item ${r.hidden?'hidden':''}`; i.innerHTML=`<span class="hist-time">${t}</span><div style="color:${r.hidden?'#bd1e1e':'#d4af37'};font-weight:bold;">${r.hidden?'👁️ ':''}${r.title}</div><div class="hist-res">${r.total}</div><div style="font-size:0.7rem;color:#666;">${r.details}</div>`; document.getElementById('hist-list').prepend(i); }
+        
+        function getCharList(){ return chars ? (Array.isArray(chars)?chars.filter(x=>x):Object.values(chars)) : []; }
+        function getActiveChar(){ return getCharList().find(c=>c.id==activeId); }
+    </script>
+</body>
+</html>
